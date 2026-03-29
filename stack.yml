@@ -16,7 +16,7 @@ services:
 
   backend:
     build:
-      context: /home/oceandmt/.openclaw/workspace/autoclip
+      context: .
       dockerfile: Dockerfile
     container_name: autoclip-backend
     restart: unless-stopped
@@ -43,9 +43,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - /home/oceandmt/.openclaw/workspace/autoclip/data:/app/data
-      - /home/oceandmt/.openclaw/workspace/autoclip/logs:/app/logs
-      - /home/oceandmt/.openclaw/workspace/autoclip/uploads:/app/uploads
+      - autoclip_data:/app/data
+      - autoclip_logs:/app/logs
+      - autoclip_uploads:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -70,14 +70,14 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - /home/oceandmt/.openclaw/workspace/autoclip:/app
+      - ./:/app
     depends_on:
       backend:
         condition: service_started
 
   celery-worker:
     build:
-      context: /home/oceandmt/.openclaw/workspace/autoclip
+      context: .
       dockerfile: Dockerfile
     container_name: autoclip-celery-worker
     restart: unless-stopped
@@ -103,9 +103,9 @@ services:
       PYTHONPATH: /app
     command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=2
     volumes:
-      - /home/oceandmt/.openclaw/workspace/autoclip/data:/app/data
-      - /home/oceandmt/.openclaw/workspace/autoclip/logs:/app/logs
-      - /home/oceandmt/.openclaw/workspace/autoclip/uploads:/app/uploads
+      - autoclip_data:/app/data
+      - autoclip_logs:/app/logs
+      - autoclip_uploads:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -116,7 +116,7 @@ services:
 
   celery-beat:
     build:
-      context: /home/oceandmt/.openclaw/workspace/autoclip
+      context: .
       dockerfile: Dockerfile
     container_name: autoclip-celery-beat
     restart: unless-stopped
@@ -142,8 +142,8 @@ services:
       PYTHONPATH: /app
     command: celery -A backend.core.celery_app beat --loglevel=info
     volumes:
-      - /home/oceandmt/.openclaw/workspace/autoclip/data:/app/data
-      - /home/oceandmt/.openclaw/workspace/autoclip/logs:/app/logs
+      - autoclip_data:/app/data
+      - autoclip_logs:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -154,7 +154,7 @@ services:
 
   flower:
     build:
-      context: /home/oceandmt/.openclaw/workspace/autoclip
+      context: .
       dockerfile: Dockerfile
     container_name: autoclip-flower
     restart: unless-stopped
@@ -192,7 +192,13 @@ services:
 volumes:
   autoclip_redis_data:
     driver: local
+  autoclip_data:
+    driver: local
+  autoclip_logs:
+    driver: local
+  autoclip_uploads:
+    driver: local
 
 networks:
   default:
-    name: autoclip-network
+    name: autoclip-proxpal-network
