@@ -1,0 +1,10 @@
+{
+  "dashscope_api_key": "sk-1280fee632a541c1a69d3873f850358b",
+  "model_name": "gpt-5.4",
+  "chunk_size": 5000,
+  "min_score_threshold": 0.7,
+  "max_clips_per_collection": 5,
+  "llm_provider": "openai",
+  "openai_api_key": "proxypal-local",
+  "openai_base_url": "http://127.0.0.1:8317/v1"
+}

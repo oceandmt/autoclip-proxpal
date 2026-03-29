@@ -1,0 +1,148 @@
+services:
+  # Redis服务
+  redis:
+    image: redis:7-alpine
+    container_name: autoclip-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端API服务
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoclip-backend
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:///./data/autoclip.db
+      PYTHONPATH: /app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 前端Vite服务
+  frontend:
+    image: node:18-slim
+    container_name: autoclip-frontend
+    restart: unless-stopped
+    working_dir: /app/frontend
+    command: >
+      sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 3000"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+    depends_on:
+      backend:
+        condition: service_started
+
+  # Celery Worker服务
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoclip-celery-worker
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:///./data/autoclip.db
+      PYTHONPATH: /app
+    command: celery -A backend.core.celery_app worker --loglevel=info --concurrency=2
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # Celery Beat调度器
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoclip-celery-beat
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:///./data/autoclip.db
+      PYTHONPATH: /app
+    command: celery -A backend.core.celery_app beat --loglevel=info
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # Flower监控服务（可选）
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoclip-flower
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:///./data/autoclip.db
+      PYTHONPATH: /app
+    command: celery -A backend.core.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: autoclip-network
